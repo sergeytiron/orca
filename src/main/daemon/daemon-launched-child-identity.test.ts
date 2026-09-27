@@ -158,14 +158,15 @@ describe('launchDaemonChild durable-scope fallback', () => {
 })
 
 describe('launchDaemonChild AppImage fallback', () => {
+  const APPIMAGE_LAUNCH = {
+    appImagePath: '/apps/Orca.AppImage',
+    entryPathInAppDir: 'resources/app.asar.unpacked/out/main/daemon-entry.js',
+    appPathInAppDir: 'resources/app.asar',
+    appVersion: '1.0.0'
+  }
+
   it('retries from the current mount under a scope name the failed attempt never used', async () => {
     isDurableDaemonScopeSupportedMock.mockReturnValue(true)
-    const appImage = {
-      appImagePath: '/apps/Orca.AppImage',
-      entryPathInAppDir: 'resources/app.asar.unpacked/out/main/daemon-entry.js',
-      appPathInAppDir: 'resources/app.asar',
-      appVersion: '1.0.0'
-    }
     const failed = fakeDaemonChild(4242)
     const inMount = fakeDaemonChild(4343)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -184,7 +185,7 @@ describe('launchDaemonChild AppImage fallback', () => {
     })
 
     try {
-      const launched = await launchDaemonChild({ ...LAUNCH_OPTIONS, appImage })
+      const launched = await launchDaemonChild({ ...LAUNCH_OPTIONS, appImage: APPIMAGE_LAUNCH })
 
       const attempts = spawnDaemonChildProcessMock.mock.calls.map(([options, scoped]) => ({
         appImage: options.appImage?.appImagePath,
@@ -200,6 +201,27 @@ describe('launchDaemonChild AppImage fallback', () => {
       expect(launched.identity).toMatchObject({ pid: 4343, launchNonce: 'nonce-a' })
     } finally {
       warn.mockRestore()
+    }
+  })
+
+  it('does not retry beside an AppImage attempt whose cleanup failed', async () => {
+    isDurableDaemonScopeSupportedMock.mockReturnValue(true)
+    const alive = fakeDaemonChild(4242)
+    spawnDaemonChildProcessMock.mockImplementation(() => {
+      queueMicrotask(() => alive.emit('message', { type: 'ready', startedAtMs: 1 }))
+      return alive
+    })
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw Object.assign(new Error('operation not permitted'), { code: 'EPERM' })
+    })
+
+    try {
+      const launch = launchDaemonChild({ ...LAUNCH_OPTIONS, appImage: APPIMAGE_LAUNCH })
+
+      await expect(launch).rejects.toBeInstanceOf(AggregateError)
+      expect(spawnDaemonChildProcessMock).toHaveBeenCalledOnce()
+    } finally {
+      kill.mockRestore()
     }
   })
 })

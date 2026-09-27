@@ -23,6 +23,15 @@ export class DaemonEndpointUnavailableError extends Error {
   }
 }
 
+/** The failed attempt may still be alive, so no retry may start beside it. */
+class DaemonStartupCleanupError extends AggregateError {}
+
+function isRetryableLaunchFailure(error: unknown): boolean {
+  return !(
+    error instanceof DaemonEndpointUnavailableError || error instanceof DaemonStartupCleanupError
+  )
+}
+
 export type LaunchedDaemonChild = {
   child: ChildProcess
   identity: DaemonEndpointIdentity
@@ -42,7 +51,7 @@ export async function launchDaemonChild(
         scopeSupported
       )
     } catch (error) {
-      if (error instanceof DaemonEndpointUnavailableError) {
+      if (!isRetryableLaunchFailure(error)) {
         throw error
       }
       // Why: a missing/replaced AppImage or a refused FUSE mount must not cost the daemon; the
@@ -74,9 +83,9 @@ async function launchDaemonChildInEitherScope(
   try {
     return await launchDaemonChildAttempt(options, true)
   } catch (error) {
-    if (error instanceof DaemonEndpointUnavailableError) {
-      // Not a scope problem: another daemon owns the endpoint and the caller adopts it, so a
-      // retry would only fork a second child to lose the same race.
+    if (!isRetryableLaunchFailure(error)) {
+      // Not a scope problem: another daemon owns the endpoint and the caller adopts it, or the
+      // failed child could not be confirmed dead, so a retry would only race it.
       throw error
     }
     console.warn(
@@ -147,7 +156,7 @@ async function launchDaemonChildAttempt(
         await terminateLaunchedDaemonChild(child)
       } catch (cleanupError) {
         reject(
-          new AggregateError(
+          new DaemonStartupCleanupError(
             [startupError, cleanupError],
             'Daemon startup and child cleanup both failed'
           )
