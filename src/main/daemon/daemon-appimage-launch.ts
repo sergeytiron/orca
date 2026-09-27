@@ -9,6 +9,7 @@
  * entry against the `APPDIR` the child runtime exports.
  */
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { relativePathInsideRoot } from '../../shared/cross-platform-path'
 import { resolveAppImageRuntimeIdentity } from '../appimage-runtime-identity'
 import type { DurableDaemonScopeCommand } from './daemon-cgroup-scope'
@@ -79,6 +80,15 @@ export function resolveAppImageDaemonLaunch({
     return null
   }
   return { appImagePath: identity.appImagePath, entryPathInAppDir, appPathInAppDir, appVersion }
+}
+
+/**
+ * The `--entry-path` identity an own-mount daemon records. Why not the mount path: each launch
+ * mounts at a fresh random dir, so the next window could never match a surviving daemon. A new
+ * release at the same `$APPIMAGE` still gets replaced via the recorded `--app-version`.
+ */
+export function appImageDaemonIdentityPath(launch: AppImageDaemonLaunch): string {
+  return join(launch.appImagePath, launch.entryPathInAppDir)
 }
 
 function buildBootstrap(launch: AppImageDaemonLaunch): string {

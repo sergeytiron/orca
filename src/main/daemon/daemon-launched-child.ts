@@ -70,8 +70,9 @@ export async function launchDaemonChild(
  * is what lets the daemon survive a combined-unit `systemctl restart`, but the pre-flight
  * capability probe can still race a real environment fact (a torn-down user session, a polkit
  * policy rejection at the actual `StartTransientUnit` D-Bus call). A scoped attempt that fails
- * for any reason but a lost endpoint race retries once, unscoped, so an environment that cannot
- * support isolation degrades to today's proven behavior instead of failing the launch outright.
+ * retries once, unscoped, so an environment that cannot support isolation degrades to today's
+ * proven behavior instead of failing the launch outright. A lost endpoint race or a failed child
+ * cleanup (`DaemonStartupCleanupError`) is not retried; see `isRetryableLaunchFailure`.
  */
 async function launchDaemonChildInEitherScope(
   options: DaemonChildSpawnOptions,

@@ -1,7 +1,11 @@
 import { forkProcess, type ForkSpec } from '../../shared/child-process/fork-process'
 import { spawnProcess, type SpawnedProcess } from '../../shared/child-process/run-process'
 import { getAppEnvironment } from '../../shared/app-environment'
-import { buildAppImageDaemonCommand, type AppImageDaemonLaunch } from './daemon-appimage-launch'
+import {
+  appImageDaemonIdentityPath,
+  buildAppImageDaemonCommand,
+  type AppImageDaemonLaunch
+} from './daemon-appimage-launch'
 import { buildDurableDaemonScopeCommand } from './daemon-cgroup-scope'
 import { daemonLogArgs } from './daemon-launch-paths'
 
@@ -20,7 +24,15 @@ export type DaemonChildSpawnOptions = {
 }
 
 function buildDaemonScriptArgs(options: DaemonChildSpawnOptions): string[] {
-  const { socketPath, tokenPath, pidPath, launchNonce, entryPath, macosLoginSessionWatch } = options
+  const {
+    socketPath,
+    tokenPath,
+    pidPath,
+    launchNonce,
+    entryPath,
+    appImage,
+    macosLoginSessionWatch
+  } = options
   return [
     '--socket',
     socketPath,
@@ -31,7 +43,7 @@ function buildDaemonScriptArgs(options: DaemonChildSpawnOptions): string[] {
     '--launch-nonce',
     launchNonce,
     '--entry-path',
-    entryPath,
+    appImage ? appImageDaemonIdentityPath(appImage) : entryPath,
     '--app-version',
     getAppEnvironment().getVersion(),
     '--spawner-exec-path',

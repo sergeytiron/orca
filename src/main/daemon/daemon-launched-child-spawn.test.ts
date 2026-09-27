@@ -79,4 +79,18 @@ describe('daemon launch through the AppImage file', () => {
       })
     )
   })
+
+  it('records an entry identity that survives the next mount', () => {
+    spawnDaemonChildProcess({ ...options, appImage }, false)
+    const { args } = spawn.mock.calls[0][0]
+    expect(args[args.indexOf('--entry-path') + 1]).toBe(
+      '/apps/Orca.AppImage/resources/app.asar.unpacked/out/main/daemon-entry.js'
+    )
+  })
+
+  it('keeps the mount entry identity for the in-mount fallback', () => {
+    spawnDaemonChildProcess(options, true)
+    const { args } = spawn.mock.calls[0][0]
+    expect(args[args.indexOf('--entry-path') + 1]).toBe('/app/daemon-entry.js')
+  })
 })
